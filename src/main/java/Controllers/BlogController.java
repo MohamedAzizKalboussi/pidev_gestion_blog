@@ -3,12 +3,15 @@ package Controllers;
 import Entities.Commentaire;
 import Entities.Post;
 import Entities.Reaction;
+import Services.AI_ModerationService;
+import Services.ModerationResult;
 import Services.Commentaire_Services;
 import Services.Posting_Services;
 import Services.Reaction_Services;
 
 import javafx.animation.FadeTransition;
 import javafx.animation.TranslateTransition;
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
@@ -20,6 +23,13 @@ import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
+import javafx.scene.media.Media;
+import javafx.scene.media.MediaPlayer;
+import javafx.scene.media.MediaView;
+import javafx.scene.paint.Color;
+import javafx.scene.paint.LinearGradient;
+import javafx.scene.paint.Stop;
+import javafx.scene.paint.CycleMethod;
 import javafx.scene.shape.Rectangle;
 import javafx.stage.FileChooser;
 import javafx.util.Duration;
@@ -29,14 +39,8 @@ import java.net.URL;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
-/**
- * BlogController
- * Place at: src/main/java/Controllers/BlogController.java
- *
- * No javafx.media imports — removed to fix IllegalAccessError on Java 21+/24.
- * Videos show a styled placeholder with an "Open" button (uses java.awt.Desktop).
- */
 public class BlogController implements Initializable {
 
     // ═══════════════════════════════════════════
@@ -62,28 +66,48 @@ public class BlogController implements Initializable {
     // Services
     // ═══════════════════════════════════════════
 
-    private final Posting_Services     postService     = new Posting_Services();
-    private final Commentaire_Services commentService  = new Commentaire_Services();
-    private final Reaction_Services    reactionService = new Reaction_Services();
+    private final Posting_Services     postService       = new Posting_Services();
+    private final Commentaire_Services commentService    = new Commentaire_Services();
+    private final Reaction_Services    reactionService   = new Reaction_Services();
+    private final AI_ModerationService moderationService = new AI_ModerationService();
 
     // ═══════════════════════════════════════════
     // State
     // ═══════════════════════════════════════════
 
-    private final ObservableList<Post> postsList      = FXCollections.observableArrayList();
-    private final Map<Integer, Integer> reportCounts  = new HashMap<>();
-    private final Set<Integer>          hiddenPostIds = new HashSet<>();
-    private final Set<Integer>          savedPostIds  = new HashSet<>();
+    private final ObservableList<Post>  postsList       = FXCollections.observableArrayList();
+    private final Map<Integer, Integer> reportCounts    = new HashMap<>();
+    private final Set<Integer>          hiddenPostIds   = new HashSet<>();
+    private final Set<Integer>          savedPostIds    = new HashSet<>();
+    private final Set<Integer>          aiHiddenPostIds = new HashSet<>();
 
-    // Spam protection: max 3 comments per 3 minutes
-    private final List<LocalDateTime> commentTimestamps     = new ArrayList<>();
-    private static final int          MAX_COMMENTS_IN_WINDOW = 3;
-    private static final int          COMMENT_WINDOW_MINUTES = 3;
+    private final List<LocalDateTime>   commentTimestamps      = new ArrayList<>();
+    private static final int            MAX_COMMENTS_IN_WINDOW = 3;
+    private static final int            COMMENT_WINDOW_MINUTES = 3;
 
     private static final int    MAX_REPORTS  = 10;
     private static final String CURRENT_USER = "CurrentUser";
     private static final DateTimeFormatter DATE_FMT =
-            DateTimeFormatter.ofPattern("MMM dd, yyyy · HH:mm");
+            DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm");
+
+    // ── FIX: Pre-built gradient backgrounds using JavaFX API (not CSS) ───────
+    // JavaFX inline CSS does NOT support linear-gradient(). Use Background API.
+    private static final Background AVATAR_BG_LARGE = buildGradientBackground(
+            Color.web("#4F46E5"), Color.web("#7C3AED"), 38);
+    private static final Background AVATAR_BG_SMALL = buildGradientBackground(
+            Color.web("#4F46E5"), Color.web("#7C3AED"), 28);
+
+    private static Background buildGradientBackground(Color from, Color to, double radius) {
+        LinearGradient gradient = new LinearGradient(
+                0, 0, 1, 1, true, CycleMethod.NO_CYCLE,
+                new Stop(0, from), new Stop(1, to));
+        BackgroundFill fill = new BackgroundFill(
+                gradient,
+                new CornerRadii(radius),
+                Insets.EMPTY);
+        return new Background(fill);
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     // ═══════════════════════════════════════════
     // Init
@@ -111,7 +135,9 @@ public class BlogController implements Initializable {
         postsFeedContainer.getChildren().clear();
         int visible = 0;
         for (Post post : postsList) {
-            if (hiddenPostIds.contains(post.getIdPost())) continue;
+            if (hiddenPostIds.contains(post.getIdPost()))   continue;
+            if (aiHiddenPostIds.contains(post.getIdPost())) continue;
+
             VBox card = buildPostCard(post, false);
             card.setOpacity(0);
             postsFeedContainer.getChildren().add(card);
@@ -143,6 +169,47 @@ public class BlogController implements Initializable {
     }
 
     // ═══════════════════════════════════════════
+    // AI Moderation — async, never blocks UI
+    // ═══════════════════════════════════════════
+
+    private void runModerationAsync(Post post, boolean isEdit) {
+        showToast("🤖 AI is analyzing your post…");
+        CompletableFuture
+                .supplyAsync(() -> moderationService.moderate(post.getContenu()))
+                .thenAccept(result -> Platform.runLater(() ->
+                        handleModerationResult(post, result, isEdit)));
+    }
+
+    private void handleModerationResult(Post post, ModerationResult result, boolean isEdit) {
+        String action = isEdit ? "edited" : "published";
+        if (result.shouldHide) {
+            aiHiddenPostIds.add(post.getIdPost());
+            post.setStatut("hidden");
+            postService.modifierPost(post);
+            rebuildFeed();
+
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle("🤖 Post Auto-Hidden by AI Moderation");
+            alert.setHeaderText("Your post has been automatically hidden.");
+            alert.setContentText(
+                    "Our AI moderation system flagged your " + action + " post.\n\n" +
+                            "Reason : " + result.reason + "\n" +
+                            "Risk score : " + String.format("%.0f%%", result.score * 100) + "\n\n" +
+                            "The post is now marked as Hidden and is only\n" +
+                            "visible to administrators for review.");
+            alert.getDialogPane().setStyle(
+                    "-fx-background-color:#FFFFFF;" +
+                            "-fx-font-family:'Segoe UI',Arial;" +
+                            "-fx-font-size:13px;");
+            alert.show();
+        } else {
+            showToast(String.format(
+                    "✅ AI check passed (%.0f%% risk) — post is live",
+                    result.score * 100));
+        }
+    }
+
+    // ═══════════════════════════════════════════
     // Post Card
     // ═══════════════════════════════════════════
 
@@ -164,19 +231,15 @@ public class BlogController implements Initializable {
         inner.setPadding(new Insets(18, 20, 4, 20));
         card.getChildren().add(inner);
 
-        // 1 — Header
         inner.getChildren().add(buildCardHeader(post, isArchive));
 
-        // 2 — Content label
         Label contentLabel = new Label(post.getContenu());
         contentLabel.setWrapText(true);
         contentLabel.setStyle(
                 "-fx-font-size:13px; -fx-text-fill:#374151;" +
-                        "-fx-font-family:'Segoe UI',Arial; -fx-line-spacing:2;"
-        );
+                        "-fx-font-family:'Segoe UI',Arial; -fx-line-spacing:2;");
         inner.getChildren().add(contentLabel);
 
-        // 3 — Media (image or video placeholder)
         if (post.getMedia() != null && !post.getMedia().isBlank()) {
             try {
                 Node mediaNode = buildMediaNode(post.getMedia());
@@ -189,10 +252,9 @@ public class BlogController implements Initializable {
             }
         }
 
-        // 4 — Stats bar
-        List<Reaction>    reactions = reactionService.getReactionsByPost(post.getIdPost());
-        List<Commentaire> comments  = commentService.getCommentairesByPost(post.getIdPost());
-        int reportCount = reportCounts.getOrDefault(post.getIdPost(), 0);
+        List<Reaction>    reactions   = reactionService.getReactionsByPost(post.getIdPost());
+        List<Commentaire> comments    = commentService.getCommentairesByPost(post.getIdPost());
+        int               reportCount = reportCounts.getOrDefault(post.getIdPost(), 0);
 
         HBox stats = new HBox(6);
         stats.setAlignment(Pos.CENTER_LEFT);
@@ -200,26 +262,21 @@ public class BlogController implements Initializable {
         stats.getChildren().addAll(
                 statLabel("♥ " + reactions.size()),
                 statLabel("·"),
-                statLabel("💬 " + comments.size())
-        );
+                statLabel("💬 " + comments.size()));
         if (reportCount > 0)
             stats.getChildren().addAll(statLabel("·"), statLabel("⚑ " + reportCount));
         inner.getChildren().add(stats);
 
-        // 5 — Divider
         Separator sep = new Separator();
         sep.setPadding(new Insets(3, 0, 0, 0));
         inner.getChildren().add(sep);
 
-        // 6 — Comments section (hidden initially)
         VBox commentsSection = buildCommentsSection(post, comments);
         commentsSection.setVisible(false);
         commentsSection.setManaged(false);
 
-        // 7 — Actions row
         HBox actionsRow = buildActionsRow(
-                post, reactions.size(), commentsSection, inner, contentLabel, isArchive
-        );
+                post, reactions.size(), commentsSection, inner, contentLabel, isArchive);
         inner.getChildren().add(actionsRow);
         inner.getChildren().add(commentsSection);
 
@@ -234,22 +291,20 @@ public class BlogController implements Initializable {
         HBox header = new HBox(11);
         header.setAlignment(Pos.CENTER_LEFT);
 
+        // ── FIX: Use JavaFX Background API for gradient avatar (not CSS) ─────
         Label avatar = new Label(CURRENT_USER.substring(0, 1).toUpperCase());
         avatar.setMinSize(38, 38);
         avatar.setMaxSize(38, 38);
         avatar.setAlignment(Pos.CENTER);
-        avatar.setStyle(
-                "-fx-background-color:linear-gradient(135deg,#4F46E5,#7C3AED);" +
-                        "-fx-background-radius:19; -fx-text-fill:white;" +
-                        "-fx-font-size:14px; -fx-font-weight:bold;"
-        );
+        avatar.setBackground(AVATAR_BG_LARGE);
+        avatar.setStyle("-fx-text-fill:white; -fx-font-size:14px; -fx-font-weight:bold;");
+        // ─────────────────────────────────────────────────────────────────────
 
         VBox meta = new VBox(1);
         Label nameL = new Label(CURRENT_USER);
         nameL.setStyle(
                 "-fx-font-size:13px; -fx-font-weight:bold;" +
-                        "-fx-text-fill:#111827; -fx-font-family:'Segoe UI',Arial;"
-        );
+                        "-fx-text-fill:#111827; -fx-font-family:'Segoe UI',Arial;");
 
         HBox dateLine = new HBox(6);
         dateLine.setAlignment(Pos.CENTER_LEFT);
@@ -265,14 +320,12 @@ public class BlogController implements Initializable {
                 "-fx-background-color:" + (isPrivate ? "#FEF3C7" : "#ECFDF5") + ";" +
                         "-fx-background-radius:20;" +
                         "-fx-text-fill:" + (isPrivate ? "#92400E" : "#065F46") + ";" +
-                        "-fx-font-size:9px; -fx-padding:2 7 2 7;"
-        );
+                        "-fx-font-size:9px; -fx-padding:2 7 2 7;");
         dateLine.getChildren().addAll(dateL, visBadge);
         meta.getChildren().addAll(nameL, dateLine);
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
-
         header.getChildren().addAll(avatar, meta, spacer, buildMoreMenu(post, isArchive));
         return header;
     }
@@ -286,10 +339,8 @@ public class BlogController implements Initializable {
         btn.setStyle(
                 "-fx-background-color:transparent; -fx-background-radius:8;" +
                         "-fx-text-fill:#9CA3AF; -fx-font-size:11px;" +
-                        "-fx-padding:4 8 4 8; -fx-cursor:HAND; -fx-border-color:transparent;"
-        );
+                        "-fx-padding:4 8 4 8; -fx-cursor:HAND; -fx-border-color:transparent;");
 
-        // Save / Remove from saved
         boolean isSaved = savedPostIds.contains(post.getIdPost());
         MenuItem saveItem = new MenuItem(isSaved ? "🗂  Remove from Saved" : "🗂  Save Post");
         saveItem.setOnAction(e -> {
@@ -304,19 +355,16 @@ public class BlogController implements Initializable {
             if (archiveView.isVisible()) rebuildArchive();
         });
 
-        // Hide
         MenuItem hideItem = new MenuItem("🙈  Hide this post");
         hideItem.setOnAction(e -> {
             hiddenPostIds.add(post.getIdPost());
             rebuildFeed();
         });
 
-        // Visibility toggle
         boolean currentlyPrivate = post.getStatut() != null
                 && post.getStatut().toLowerCase().contains("private");
         MenuItem visItem = new MenuItem(
-                currentlyPrivate ? "🌐  Make Public" : "🔒  Make Private"
-        );
+                currentlyPrivate ? "🌐  Make Public" : "🔒  Make Private");
         visItem.setOnAction(e -> {
             post.setStatut(currentlyPrivate ? "public" : "private");
             postService.modifierPost(post);
@@ -324,8 +372,6 @@ public class BlogController implements Initializable {
         });
 
         SeparatorMenuItem sep = new SeparatorMenuItem();
-
-        // Report
         MenuItem reportItem = new MenuItem("⚑  Report post");
         reportItem.setOnAction(e -> handleReport(post));
 
@@ -338,7 +384,7 @@ public class BlogController implements Initializable {
     }
 
     // ─────────────────────────────────────────
-    // Media — NO MediaPlayer, safe for Java 21+/24
+    // Media
     // ─────────────────────────────────────────
 
     private Node buildMediaNode(String mediaPath) {
@@ -347,7 +393,7 @@ public class BlogController implements Initializable {
         boolean isVideo = lower.endsWith(".mp4")  || lower.endsWith(".avi")
                 || lower.endsWith(".mov")  || lower.endsWith(".mkv")
                 || lower.endsWith(".webm") || lower.endsWith(".flv");
-        return isVideo ? buildVideoPlaceholder(mediaPath) : buildImageNode(mediaPath);
+        return isVideo ? buildVideoPlayer(mediaPath) : buildImageNode(mediaPath);
     }
 
     private Node buildImageNode(String path) {
@@ -364,91 +410,93 @@ public class BlogController implements Initializable {
         }
     }
 
-    /**
-     * Video placeholder card.
-     * Shows filename + play icon + "Open Video" button.
-     * Clicking "Open Video" opens the file in the system default player
-     * (VLC, Windows Media Player, etc.) via java.awt.Desktop.
-     */
-    private Node buildVideoPlaceholder(String path) {
-        String fileName = new File(path).getName();
-        String ext = fileName.contains(".")
-                ? fileName.substring(fileName.lastIndexOf('.') + 1).toUpperCase() : "VIDEO";
+    private Node buildVideoPlayer(String path) {
+        try {
+            File f = new File(path);
+            String url = f.exists() ? f.toURI().toString() : path;
 
-        // Top bar
-        HBox topBar = new HBox();
-        topBar.setStyle("-fx-background-color:#1F2937; -fx-padding:8 14 8 14;");
-        Label fileLabel = new Label("🎬  " + fileName);
-        fileLabel.setStyle("-fx-text-fill:#9CA3AF; -fx-font-size:11px;");
-        topBar.getChildren().add(fileLabel);
+            Media media = new Media(url);
+            MediaPlayer player = new MediaPlayer(media);
+            MediaView view = new MediaView(player);
+            view.setFitWidth(660);
+            view.setPreserveRatio(true);
 
-        // Center area
-        VBox center = new VBox(12);
-        center.setAlignment(Pos.CENTER);
-        center.setPrefHeight(180);
-        center.setStyle("-fx-background-color:#111827;");
+            Button playPause = new Button("▶");
+            playPause.setStyle(
+                    "-fx-background-color:#4F46E5; -fx-background-radius:8;" +
+                            "-fx-text-fill:white; -fx-font-size:13px;" +
+                            "-fx-min-width:36; -fx-min-height:32; -fx-cursor:HAND;");
 
-        // Play circle
-        StackPane playCircle = new StackPane();
-        playCircle.setMinSize(64, 64);
-        playCircle.setMaxSize(64, 64);
-        playCircle.setStyle(
-                "-fx-background-color:rgba(79,70,229,0.85);" +
-                        "-fx-background-radius:32;"
-        );
-        Label playIcon = new Label("▶");
-        playIcon.setStyle("-fx-font-size:22px; -fx-text-fill:white; -fx-padding:0 0 0 4;");
-        playCircle.getChildren().add(playIcon);
+            Slider progress = new Slider(0, 1, 0);
+            HBox.setHgrow(progress, Priority.ALWAYS);
+            progress.setStyle("-fx-padding:0 4 0 4;");
 
-        Label hintLabel = new Label("Video attached — click to open in your player");
-        hintLabel.setStyle("-fx-font-size:11px; -fx-text-fill:#6B7280;");
+            Label timeLabel = new Label("0:00");
+            timeLabel.setStyle("-fx-font-size:11px; -fx-text-fill:#9CA3AF;");
 
-        // Open button
-        Button openBtn = new Button("📂  Open Video");
-        openBtn.setStyle(
-                "-fx-background-color:transparent;" +
-                        "-fx-border-color:#4F46E5; -fx-border-radius:8; -fx-border-width:1.5;" +
-                        "-fx-text-fill:#4F46E5; -fx-font-size:12px;" +
-                        "-fx-padding:6 18 6 18; -fx-cursor:HAND; -fx-background-radius:8;"
-        );
-        openBtn.setOnAction(e -> {
-            try {
-                File f = new File(path);
-                if (f.exists()) java.awt.Desktop.getDesktop().open(f);
-                else showToast("File not found: " + fileName);
-            } catch (Exception ex) {
-                showToast("Cannot open video file.");
-            }
-        });
+            Button muteBtn = new Button("🔊");
+            muteBtn.setStyle("-fx-background-color:transparent; -fx-font-size:13px; -fx-cursor:HAND;");
 
-        center.getChildren().addAll(playCircle, hintLabel, openBtn);
+            HBox controls = new HBox(8, playPause, progress, timeLabel, muteBtn);
+            controls.setAlignment(Pos.CENTER_LEFT);
+            controls.setPadding(new Insets(8, 12, 8, 12));
+            controls.setStyle("-fx-background-color:#1F2937;");
 
-        // Bottom bar
-        HBox bottomBar = new HBox(10);
-        bottomBar.setAlignment(Pos.CENTER_LEFT);
-        bottomBar.setStyle("-fx-background-color:#1F2937; -fx-padding:8 14 8 14;");
-        Label typeLabel = new Label("VIDEO");
-        typeLabel.setStyle(
-                "-fx-background-color:#4F46E5; -fx-background-radius:4;" +
-                        "-fx-text-fill:white; -fx-font-size:9px; -fx-padding:2 6 2 6; -fx-font-weight:bold;"
-        );
-        Label extLabel = new Label(ext);
-        extLabel.setStyle("-fx-text-fill:#6B7280; -fx-font-size:11px;");
-        bottomBar.getChildren().addAll(typeLabel, extLabel);
+            final boolean[] playing = {false};
+            playPause.setOnAction(e -> {
+                if (playing[0]) { player.pause(); playPause.setText("▶"); }
+                else            { player.play();  playPause.setText("⏸"); }
+                playing[0] = !playing[0];
+            });
 
-        // Assemble with rounded clip
-        VBox card = new VBox(0);
-        card.setStyle("-fx-background-radius:10; -fx-background-color:#111827;");
-        card.getChildren().addAll(topBar, center, bottomBar);
+            final boolean[] muted = {false};
+            muteBtn.setOnAction(e -> {
+                muted[0] = !muted[0];
+                player.setMute(muted[0]);
+                muteBtn.setText(muted[0] ? "🔇" : "🔊");
+            });
 
-        Rectangle clip = new Rectangle();
-        clip.setArcWidth(20);
-        clip.setArcHeight(20);
-        clip.widthProperty().bind(card.widthProperty());
-        clip.heightProperty().bind(card.heightProperty());
-        card.setClip(clip);
+            progress.setOnMousePressed(e -> {
+                javafx.util.Duration total = player.getTotalDuration();
+                if (total != null)
+                    player.seek(javafx.util.Duration.seconds(progress.getValue() * total.toSeconds()));
+            });
+            progress.setOnMouseDragged(e -> {
+                javafx.util.Duration total = player.getTotalDuration();
+                if (total != null)
+                    player.seek(javafx.util.Duration.seconds(progress.getValue() * total.toSeconds()));
+            });
 
-        return card;
+            player.currentTimeProperty().addListener((obs, old, now) -> {
+                javafx.util.Duration total = player.getTotalDuration();
+                if (total != null && total.toSeconds() > 0) {
+                    progress.setValue(now.toSeconds() / total.toSeconds());
+                    int secs = (int) now.toSeconds();
+                    timeLabel.setText(secs / 60 + ":" + String.format("%02d", secs % 60));
+                }
+            });
+
+            player.setOnEndOfMedia(() -> {
+                player.seek(javafx.util.Duration.ZERO);
+                playing[0] = false;
+                playPause.setText("▶");
+            });
+
+            VBox videoCard = new VBox(0, view, controls);
+            videoCard.setStyle("-fx-background-color:#000000; -fx-background-radius:10;");
+            Rectangle clip = new Rectangle();
+            clip.setArcWidth(20);
+            clip.setArcHeight(20);
+            clip.widthProperty().bind(videoCard.widthProperty());
+            clip.heightProperty().bind(videoCard.heightProperty());
+            videoCard.setClip(clip);
+            return videoCard;
+
+        } catch (Exception e) {
+            Label err = new Label("⚠ Could not load video: " + new File(path).getName());
+            err.setStyle("-fx-font-size:11px; -fx-text-fill:#F59E0B;");
+            return err;
+        }
     }
 
     // ─────────────────────────────────────────
@@ -486,7 +534,7 @@ public class BlogController implements Initializable {
     }
 
     // ─────────────────────────────────────────
-    // Comments Section — Facebook-style threads
+    // Comments Section
     // ─────────────────────────────────────────
 
     private VBox buildCommentsSection(Post post, List<Commentaire> comments) {
@@ -494,37 +542,25 @@ public class BlogController implements Initializable {
         section.setStyle(
                 "-fx-background-color:#F9FAFB;" +
                         "-fx-background-radius:0 0 12 12;" +
-                        "-fx-padding:12 20 14 20;"
-        );
+                        "-fx-padding:12 20 14 20;");
 
-        // Spam protection error label
         Label spamLabel = new Label();
         spamLabel.setStyle(
                 "-fx-text-fill:#EF4444; -fx-font-size:11px;" +
-                        "-fx-font-family:'Segoe UI',Arial; -fx-padding:0 0 6 0;"
-        );
+                        "-fx-font-family:'Segoe UI',Arial; -fx-padding:0 0 6 0;");
         spamLabel.setVisible(false);
         spamLabel.setManaged(false);
 
-        // Comments list
         VBox commentsList = new VBox(4);
         for (Commentaire c : comments) {
             commentsList.getChildren().add(buildCommentItem(c, post, spamLabel));
         }
 
-        // Top-level add form
         HBox addForm = buildAddCommentForm(post, commentsList, null, spamLabel);
-
         section.getChildren().addAll(spamLabel, commentsList, addForm);
         return section;
     }
 
-    /**
-     * Builds one comment item with:
-     * - Avatar + name + text bubble (Facebook style)
-     * - timestamp · ♥ react · ↩ Reply
-     * - Indented reply thread (hidden until Reply clicked)
-     */
     private VBox buildCommentItem(Commentaire comment, Post post, Label spamLabel) {
         VBox wrapper = new VBox(0);
         wrapper.setPadding(new Insets(6, 0, 4, 0));
@@ -532,40 +568,31 @@ public class BlogController implements Initializable {
         HBox mainRow = new HBox(10);
         mainRow.setAlignment(Pos.TOP_LEFT);
 
-        // Avatar
         Label avatar = new Label("U");
         avatar.setMinSize(32, 32);
         avatar.setMaxSize(32, 32);
         avatar.setAlignment(Pos.CENTER);
         avatar.setStyle(
                 "-fx-background-color:#E5E7EB; -fx-background-radius:16;" +
-                        "-fx-text-fill:#6B7280; -fx-font-size:12px; -fx-font-weight:bold;"
-        );
+                        "-fx-text-fill:#6B7280; -fx-font-size:12px; -fx-font-weight:bold;");
 
-        // Right column
         VBox rightCol = new VBox(4);
         HBox.setHgrow(rightCol, Priority.ALWAYS);
 
-        // Comment bubble
         VBox bubble = new VBox(3);
         bubble.setStyle(
                 "-fx-background-color:#FFFFFF; -fx-background-radius:4 14 14 14;" +
                         "-fx-padding:8 12 8 12;" +
-                        "-fx-effect:dropshadow(gaussian,rgba(0,0,0,0.04),5,0,0,1);"
-        );
+                        "-fx-effect:dropshadow(gaussian,rgba(0,0,0,0.04),5,0,0,1);");
         Label nameL = new Label("User");
         nameL.setStyle(
                 "-fx-font-size:12px; -fx-font-weight:bold;" +
-                        "-fx-text-fill:#111827; -fx-font-family:'Segoe UI',Arial;"
-        );
+                        "-fx-text-fill:#111827; -fx-font-family:'Segoe UI',Arial;");
         Label textL = new Label(comment.getContenu());
         textL.setWrapText(true);
-        textL.setStyle(
-                "-fx-font-size:13px; -fx-text-fill:#374151; -fx-font-family:'Segoe UI',Arial;"
-        );
+        textL.setStyle("-fx-font-size:13px; -fx-text-fill:#374151; -fx-font-family:'Segoe UI',Arial;");
         bubble.getChildren().addAll(nameL, textL);
 
-        // Action row: time · ♥ · Reply
         HBox actionRow = new HBox(10);
         actionRow.setAlignment(Pos.CENTER_LEFT);
         actionRow.setPadding(new Insets(2, 0, 0, 4));
@@ -582,33 +609,27 @@ public class BlogController implements Initializable {
         Button replyToggle = linkButton("↩ Reply", "#6B7280");
         actionRow.getChildren().addAll(dateL, cReactBtn, replyToggle);
 
-        // Reply thread (indented, hidden initially)
         VBox replyThread = new VBox(6);
         replyThread.setPadding(new Insets(6, 0, 0, 42));
         replyThread.setVisible(false);
         replyThread.setManaged(false);
 
-        // Load existing replies
         List<Commentaire> allC = commentService.getCommentairesByPost(post.getIdPost());
         String replyPrefix = "↩ [reply@" + comment.getIdCommentaire() + "] ";
         for (Commentaire c : allC) {
             if (c.getContenu().startsWith(replyPrefix)) {
                 replyThread.getChildren().add(
-                        buildReplyBubble(c.getContenu().replace(replyPrefix, ""))
-                );
+                        buildReplyBubble(c.getContenu().replace(replyPrefix, "")));
             }
         }
 
-        // Reply input form
         HBox replyInput = buildAddCommentForm(post, replyThread, comment, spamLabel);
-
         replyToggle.setOnAction(e -> {
             boolean showing = replyThread.isVisible();
             replyThread.setVisible(!showing);
             replyThread.setManaged(!showing);
-            if (!showing && !replyThread.getChildren().contains(replyInput)) {
+            if (!showing && !replyThread.getChildren().contains(replyInput))
                 replyThread.getChildren().add(replyInput);
-            }
             replyToggle.setText(showing ? "↩ Reply" : "↩ Hide");
         });
         replyThread.getChildren().add(replyInput);
@@ -619,7 +640,6 @@ public class BlogController implements Initializable {
         return wrapper;
     }
 
-    /** Facebook-style indented reply bubble */
     private HBox buildReplyBubble(String replyText) {
         HBox row = new HBox(8);
         row.setAlignment(Pos.TOP_LEFT);
@@ -630,49 +650,35 @@ public class BlogController implements Initializable {
         avatar.setAlignment(Pos.CENTER);
         avatar.setStyle(
                 "-fx-background-color:#D1D5DB; -fx-background-radius:13;" +
-                        "-fx-text-fill:#6B7280; -fx-font-size:10px;"
-        );
+                        "-fx-text-fill:#6B7280; -fx-font-size:10px;");
 
         VBox col = new VBox(2);
         Label nameL = new Label("User");
-        nameL.setStyle(
-                "-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:#374151;"
-        );
+        nameL.setStyle("-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:#374151;");
         Label textL = new Label(replyText);
         textL.setWrapText(true);
         textL.setStyle(
                 "-fx-background-color:#EEF2FF; -fx-background-radius:4 14 14 14;" +
-                        "-fx-text-fill:#3730A3; -fx-font-size:12px; -fx-padding:7 11 7 11;"
-        );
+                        "-fx-text-fill:#3730A3; -fx-font-size:12px; -fx-padding:7 11 7 11;");
         col.getChildren().addAll(nameL, textL);
         row.getChildren().addAll(avatar, col);
         return row;
     }
 
-    /**
-     * Add-comment / add-reply input form.
-     *
-     * Métier avancé rule (spam protection):
-     * Block if user posted ≥ 3 comments within the last 3 minutes.
-     * Shows exact time remaining before they can comment again.
-     *
-     * @param parentComment  null = top-level comment; non-null = reply
-     */
     private HBox buildAddCommentForm(Post post, VBox targetList,
                                      Commentaire parentComment, Label spamLabel) {
         HBox form = new HBox(8);
         form.setAlignment(Pos.CENTER_LEFT);
         form.setPadding(new Insets(parentComment == null ? 10 : 6, 0, 0, 0));
 
-        // Self avatar
+        // ── FIX: Use JavaFX Background API for gradient avatar (not CSS) ─────
         Label selfAvatar = new Label(CURRENT_USER.substring(0, 1).toUpperCase());
         selfAvatar.setMinSize(28, 28);
         selfAvatar.setMaxSize(28, 28);
         selfAvatar.setAlignment(Pos.CENTER);
-        selfAvatar.setStyle(
-                "-fx-background-color:linear-gradient(135deg,#4F46E5,#7C3AED);" +
-                        "-fx-background-radius:14; -fx-text-fill:white; -fx-font-size:11px;"
-        );
+        selfAvatar.setBackground(AVATAR_BG_SMALL);
+        selfAvatar.setStyle("-fx-text-fill:white; -fx-font-size:11px;");
+        // ─────────────────────────────────────────────────────────────────────
 
         TextField field = new TextField();
         field.setPromptText(parentComment == null ? "Write a comment…" : "Write a reply…");
@@ -681,29 +687,24 @@ public class BlogController implements Initializable {
                         "-fx-background-color:#FFFFFF;" +
                         "-fx-background-radius:20;" +
                         "-fx-border-color:#E5E7EB; -fx-border-radius:20; -fx-border-width:1.5;" +
-                        "-fx-padding:7 12 7 12;"
-        );
+                        "-fx-padding:7 12 7 12;");
         HBox.setHgrow(field, Priority.ALWAYS);
 
         Button sendBtn = new Button("↵");
         sendBtn.setStyle(
                 "-fx-background-color:#4F46E5; -fx-background-radius:16;" +
                         "-fx-text-fill:white; -fx-font-size:13px;" +
-                        "-fx-min-width:32; -fx-min-height:32; -fx-cursor:HAND;"
-        );
+                        "-fx-min-width:32; -fx-min-height:32; -fx-cursor:HAND;");
 
         Runnable submit = () -> {
             String txt = field.getText().trim();
             if (txt.isEmpty()) return;
-
-            // ── Métier avancé: spam protection ──────────────────
             if (!canPostComment(spamLabel)) return;
 
             commentTimestamps.add(LocalDateTime.now());
             hideError(spamLabel);
 
             if (parentComment == null) {
-                // New top-level comment
                 Commentaire c = new Commentaire(txt, post.getIdPost());
                 commentService.ajouterCommentaire(c);
                 VBox item = buildCommentItem(c, post, spamLabel);
@@ -712,7 +713,6 @@ public class BlogController implements Initializable {
                 targetList.getChildren().add(idx, item);
                 fadeIn(item);
             } else {
-                // Reply — stored with special prefix
                 String replyText = "↩ [reply@" + parentComment.getIdCommentaire() + "] " + txt;
                 Commentaire reply = new Commentaire(replyText, post.getIdPost());
                 commentService.ajouterCommentaire(reply);
@@ -732,14 +732,9 @@ public class BlogController implements Initializable {
     }
 
     // ═══════════════════════════════════════════
-    // Métier avancé: Spam Protection
+    // Spam Protection
     // ═══════════════════════════════════════════
 
-    /**
-     * Returns true if the user is allowed to post a comment.
-     * Rule: max 3 comments per 3 minutes.
-     * If blocked: shows exact countdown in spamLabel.
-     */
     private boolean canPostComment(Label spamLabel) {
         LocalDateTime now    = LocalDateTime.now();
         LocalDateTime cutoff = now.minusMinutes(COMMENT_WINDOW_MINUTES);
@@ -755,8 +750,7 @@ public class BlogController implements Initializable {
                     ? minsLeft + " min " + secsLeft + " sec"
                     : secsLeft + " sec";
             showError(spamLabel,
-                    "⚠ Too many comments! Wait " + timeStr + " before commenting again."
-            );
+                    "⚠ Too many comments! Wait " + timeStr + " before commenting again.");
             shakeNode(spamLabel);
             return false;
         }
@@ -777,15 +771,25 @@ public class BlogController implements Initializable {
             return;
         }
         hideError(postErrorLabel);
+
+        publishBtn.setDisable(true);
+        publishBtn.setText("Publishing…");
+
         String selected = visibilityCombo.getValue();
         String statut = (selected != null && selected.contains("Private"))
                 ? "private" : "public";
+
         Post newPost = new Post(content, media.isEmpty() ? null : media, statut);
         postService.ajouterPost(newPost);
         postsList.add(0, newPost);
         handleClearPost();
         rebuildFeed();
         mainScrollPane.setVvalue(0);
+
+        publishBtn.setDisable(false);
+        publishBtn.setText("Publish");
+
+        runModerationAsync(newPost, false);
     }
 
     @FXML
@@ -803,14 +807,12 @@ public class BlogController implements Initializable {
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(
                 "Media files",
                 "*.png","*.jpg","*.jpeg","*.gif","*.bmp","*.webp",
-                "*.mp4","*.avi","*.mov","*.mkv","*.webm","*.flv"
-        ));
+                "*.mp4","*.avi","*.mov","*.mkv","*.webm","*.flv"));
         File file = chooser.showOpenDialog(newPostContent.getScene().getWindow());
         if (file != null) newPostMediaPath.setText(file.getAbsolutePath());
     }
 
-    @FXML
-    private void handleRefresh() { loadPosts(); }
+    @FXML private void handleRefresh() { loadPosts(); }
 
     @FXML
     private void handleShowArchive() {
@@ -830,7 +832,7 @@ public class BlogController implements Initializable {
     }
 
     // ═══════════════════════════════════════════
-    // Card handlers
+    // Card Handlers
     // ═══════════════════════════════════════════
 
     private void handleReact(Post post, Button btn) {
@@ -840,8 +842,7 @@ public class BlogController implements Initializable {
         btn.setStyle(
                 "-fx-background-color:#EF4444; -fx-background-radius:8;" +
                         "-fx-text-fill:white; -fx-font-size:12px;" +
-                        "-fx-padding:6 12 6 12; -fx-cursor:HAND;"
-        );
+                        "-fx-padding:6 12 6 12; -fx-cursor:HAND;");
     }
 
     private void handleCommentReact(Commentaire comment, Button btn) {
@@ -870,38 +871,43 @@ public class BlogController implements Initializable {
     private void handleEditPost(Post post, VBox cardInner, Label contentLabel) {
         int idx = cardInner.getChildren().indexOf(contentLabel);
         if (idx < 0) return;
+
         TextArea area = new TextArea(post.getContenu());
         area.setWrapText(true);
         area.setPrefRowCount(3);
         area.setStyle(
                 "-fx-font-size:13px; -fx-background-color:#F9FAFB;" +
                         "-fx-background-radius:8; -fx-border-color:#6366F1;" +
-                        "-fx-border-radius:8; -fx-border-width:1.5; -fx-padding:9;"
-        );
+                        "-fx-border-radius:8; -fx-border-width:1.5; -fx-padding:9;");
+
         Button saveBtn = new Button("✓  Save");
         saveBtn.setStyle(
                 "-fx-background-color:#22C55E; -fx-background-radius:8;" +
                         "-fx-text-fill:white; -fx-font-size:12px;" +
-                        "-fx-padding:6 14 6 14; -fx-cursor:HAND;"
-        );
+                        "-fx-padding:6 14 6 14; -fx-cursor:HAND;");
+
         Button cancelBtn = new Button("Cancel");
         cancelBtn.setStyle(
                 "-fx-background-color:transparent; -fx-text-fill:#9CA3AF;" +
-                        "-fx-font-size:12px; -fx-padding:6 12 6 12; -fx-cursor:HAND;"
-        );
+                        "-fx-font-size:12px; -fx-padding:6 12 6 12; -fx-cursor:HAND;");
+
         HBox editActions = new HBox(8, cancelBtn, saveBtn);
         editActions.setAlignment(Pos.CENTER_RIGHT);
         VBox editForm = new VBox(8, area, editActions);
         cardInner.getChildren().set(idx, editForm);
+
         saveBtn.setOnAction(e -> {
             String updated = area.getText().trim();
             if (!updated.isEmpty()) {
                 post.setContenu(updated);
                 postService.modifierPost(post);
                 contentLabel.setText(updated);
+                aiHiddenPostIds.remove(post.getIdPost());
+                runModerationAsync(post, true);
             }
             cardInner.getChildren().set(idx, contentLabel);
         });
+
         cancelBtn.setOnAction(e -> cardInner.getChildren().set(idx, contentLabel));
     }
 
@@ -911,13 +917,13 @@ public class BlogController implements Initializable {
         confirm.setTitle("Delete Post");
         confirm.setHeaderText("Delete this post?");
         confirm.getDialogPane().setStyle(
-                "-fx-background-color:#FFFFFF; -fx-font-family:'Segoe UI',Arial;"
-        );
+                "-fx-background-color:#FFFFFF; -fx-font-family:'Segoe UI',Arial;");
         confirm.showAndWait().ifPresent(r -> {
             if (r == ButtonType.OK) {
                 postService.supprimerPost(post.getIdPost());
                 postsList.removeIf(p -> p.getIdPost() == post.getIdPost());
                 savedPostIds.remove(post.getIdPost());
+                aiHiddenPostIds.remove(post.getIdPost());
                 rebuildFeed();
             }
         });
@@ -934,8 +940,7 @@ public class BlogController implements Initializable {
                     "-fx-background-color:rgba(17,24,39,0.85);" +
                             "-fx-background-radius:20; -fx-text-fill:white;" +
                             "-fx-font-size:12px; -fx-font-family:'Segoe UI',Arial;" +
-                            "-fx-padding:8 20 8 20;"
-            );
+                            "-fx-padding:8 20 8 20;");
             toast.setMouseTransparent(true);
             Pane root = (Pane) postsFeedContainer.getScene().getRoot();
             toast.setLayoutX(root.getWidth() / 2 - 120);
@@ -944,7 +949,7 @@ public class BlogController implements Initializable {
             FadeTransition ft = new FadeTransition(Duration.millis(1600), toast);
             ft.setFromValue(1);
             ft.setToValue(0);
-            ft.setDelay(Duration.millis(800));
+            ft.setDelay(Duration.millis(1200));
             ft.setOnFinished(e -> root.getChildren().remove(toast));
             ft.play();
         } catch (Exception ignored) {}
@@ -989,16 +994,13 @@ public class BlogController implements Initializable {
                 "-fx-background-color:transparent; -fx-text-fill:" + color + ";" +
                         "-fx-font-size:11px; -fx-font-weight:bold;" +
                         "-fx-font-family:'Segoe UI',Arial; -fx-padding:2 6 2 0;" +
-                        "-fx-cursor:HAND; -fx-border-color:transparent;"
-        );
+                        "-fx-cursor:HAND; -fx-border-color:transparent;");
         return b;
     }
 
     private Label statLabel(String text) {
         Label l = new Label(text);
-        l.setStyle(
-                "-fx-font-size:11px; -fx-text-fill:#9CA3AF; -fx-font-family:'Segoe UI',Arial;"
-        );
+        l.setStyle("-fx-font-size:11px; -fx-text-fill:#9CA3AF; -fx-font-family:'Segoe UI',Arial;");
         return l;
     }
 

@@ -62,7 +62,11 @@
             <version>${javafx.version}</version>
         </dependency>
 
-        <!-- NO javafx-media: removed to fix IllegalAccessError on Java 21+/24 -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-media</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
 
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -95,6 +99,12 @@
                 <configuration>
                     <source>21</source>
                     <target>21</target>
+                    <compilerArgs>
+                        <arg>--add-opens=javafx.base/com.sun.javafx=ALL-UNNAMED</arg>
+                        <arg>--add-opens=javafx.graphics/com.sun.javafx.application=ALL-UNNAMED</arg>
+                        <arg>--add-opens=javafx.media/com.sun.media.jfxmedia=ALL-UNNAMED</arg>
+                        <arg>--add-opens=javafx.media/com.sun.media.jfxmedia.locator=ALL-UNNAMED</arg>
+                    </compilerArgs>
                 </configuration>
             </plugin>
 
@@ -104,6 +114,13 @@
                 <version>0.0.8</version>
                 <configuration>
                     <mainClass>GUI.MainApp</mainClass>
+                    <options>
+                        <option>--add-opens=javafx.base/com.sun.javafx=ALL-UNNAMED</option>
+                        <option>--add-opens=javafx.graphics/com.sun.javafx.application=ALL-UNNAMED</option>
+                        <option>--add-opens=javafx.media/com.sun.media.jfxmedia=ALL-UNNAMED</option>
+                        <option>--add-opens=javafx.media/com.sun.media.jfxmedia.locator=ALL-UNNAMED</option>
+                        <option>--enable-native-access=javafx.graphics</option>
+                    </options>
                 </configuration>
                 <executions>
                     <execution>
@@ -121,6 +138,12 @@
                     <includes>
                         <include>**/*Test.java</include>
                     </includes>
+                    <argLine>
+                        --add-opens=javafx.base/com.sun.javafx=ALL-UNNAMED
+                        --add-opens=javafx.graphics/com.sun.javafx.application=ALL-UNNAMED
+                        --add-opens=javafx.media/com.sun.media.jfxmedia=ALL-UNNAMED
+                        --add-opens=javafx.media/com.sun.media.jfxmedia.locator=ALL-UNNAMED
+                    </argLine>
                 </configuration>
             </plugin>
 

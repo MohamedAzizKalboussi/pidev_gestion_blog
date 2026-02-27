@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="Controllers.PostCardController"
+            style="-fx-background-color: #f0f4f0;">
+
+    <top>
+        <HBox style="-fx-background-color: #1a1d27; -fx-padding: 12 24;
+                     -fx-border-color: #2d5a2d; -fx-border-width: 0 0 2 0;"
+              alignment="CENTER_LEFT" spacing="12">
+            <Label text="✈ Wanderlust"
+                   style="-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #4caf50;"/>
+            <Label text="/" style="-fx-text-fill: #555;"/>
+            <Label text="Vue Cartes" style="-fx-font-size: 16px; -fx-text-fill: #aaa;"/>
+            <HBox HBox.hgrow="ALWAYS"/>
+            <ToggleButton fx:id="btnTous"       text="Tous"            onAction="#filtrerTous"
+                          style="-fx-background-color: #4caf50; -fx-text-fill: white; -fx-cursor: hand;
+                                 -fx-background-radius: 6; -fx-padding: 7 14; -fx-font-size: 12px; -fx-font-weight: bold;"/>
+            <ToggleButton fx:id="btnPublies"    text="✅ Publiés"       onAction="#filtrerPublies"
+                          style="-fx-background-color: #2a2d3e; -fx-text-fill: #aaa; -fx-cursor: hand;
+                                 -fx-background-radius: 6; -fx-padding: 7 14; -fx-font-size: 12px;"/>
+            <ToggleButton fx:id="btnBrouillons" text="📝 Brouillons"   onAction="#filtrerBrouillons"
+                          style="-fx-background-color: #2a2d3e; -fx-text-fill: #aaa; -fx-cursor: hand;
+                                 -fx-background-radius: 6; -fx-padding: 7 14; -fx-font-size: 12px;"/>
+            <ToggleButton fx:id="btnArchives"   text="📦 Archivés"     onAction="#filtrerArchives"
+                          style="-fx-background-color: #2a2d3e; -fx-text-fill: #aaa; -fx-cursor: hand;
+                                 -fx-background-radius: 6; -fx-padding: 7 14; -fx-font-size: 12px;"/>
+            <Separator orientation="VERTICAL" style="-fx-padding: 0 4;"/>
+            <TextField fx:id="txtRecherche" promptText="🔍  Rechercher..."
+                       style="-fx-background-color: #f8f9fa; -fx-text-fill: #111;
+                              -fx-prompt-text-fill: #999; -fx-border-color: #555;
+                              -fx-border-width: 1; -fx-border-radius: 20; -fx-background-radius: 20;
+                              -fx-padding: 8 16; -fx-pref-width: 200;"/>
+            <Separator orientation="VERTICAL" style="-fx-padding: 0 4;"/>
+            <Button fx:id="btnRetourTable" text="📋  Vue Tableau" onAction="#retourTable"
+                    style="-fx-background-color: #2a2d3e; -fx-text-fill: #ccc; -fx-cursor: hand;
+                           -fx-background-radius: 6; -fx-padding: 7 14; -fx-font-size: 13px;"/>
+            <Button fx:id="btnNavComments" text="💬  Commentaires" onAction="#goToComments"
+                    style="-fx-background-color: transparent; -fx-text-fill: #aaa; -fx-cursor: hand;
+                           -fx-border-color: #444; -fx-border-radius: 6; -fx-background-radius: 6;
+                           -fx-padding: 7 14; -fx-font-size: 13px;"/>
+            <Button fx:id="btnNavReactions" text="❤  Réactions" onAction="#goToReactions"
+                    style="-fx-background-color: transparent; -fx-text-fill: #aaa; -fx-cursor: hand;
+                           -fx-border-color: #444; -fx-border-radius: 6; -fx-background-radius: 6;
+                           -fx-padding: 7 14; -fx-font-size: 13px;"/>
+        </HBox>
+    </top>
+
+    <center>
+        <ScrollPane fitToWidth="true" fitToHeight="true"
+                    style="-fx-background-color: #f0f4f0; -fx-background: #f0f4f0;">
+            <FlowPane fx:id="flowPaneCards" hgap="20" vgap="20"
+                      style="-fx-background-color: #f0f4f0; -fx-padding: 28;"
+                      alignment="TOP_LEFT">
+                <Label text="Chargement des posts..."
+                       style="-fx-text-fill: #aaa; -fx-font-size: 16px; -fx-padding: 40;"/>
+            </FlowPane>
+        </ScrollPane>
+    </center>
+</BorderPane>

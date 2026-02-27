@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="Controllers.BlogController"
+            style="-fx-background-color: #F0F2F5;">
+
+    <!-- NAV BAR -->
+    <top>
+        <HBox style="-fx-background-color:#FFFFFF;
+                     -fx-padding:0 32 0 32;
+                     -fx-alignment:CENTER_LEFT;
+                     -fx-spacing:0;
+                     -fx-min-height:56;
+                     -fx-effect:dropshadow(gaussian,rgba(0,0,0,0.06),8,0,0,2);">
+
+            <Label text="✦ Nexus"
+                   style="-fx-font-size:19px; -fx-font-weight:bold;
+                          -fx-text-fill:#4F46E5; -fx-font-family:'Segoe UI',Arial;"/>
+            <Label text=" Blog"
+                   style="-fx-font-size:19px; -fx-font-weight:300;
+                          -fx-text-fill:#1A1A2E; -fx-font-family:'Segoe UI',Arial;"/>
+
+            <Region HBox.hgrow="ALWAYS"/>
+
+            <Button fx:id="navArchiveBtn"
+                    text="🗂  Saved"
+                    onAction="#handleShowArchive"
+                    style="-fx-background-color:transparent;
+                           -fx-background-radius:8;
+                           -fx-text-fill:#6B7280;
+                           -fx-font-size:13px;
+                           -fx-font-family:'Segoe UI',Arial;
+                           -fx-padding:8 16 8 16;
+                           -fx-cursor:HAND;"/>
+
+            <Separator orientation="VERTICAL"
+                       style="-fx-padding:12 16 12 16;"/>
+
+            <HBox spacing="8" style="-fx-alignment:CENTER_LEFT; -fx-padding:0 0 0 8;">
+                <Label text="●"
+                       style="-fx-text-fill:#22C55E; -fx-font-size:9px;"/>
+                <Label fx:id="currentUsernameLabel"
+                       text="CurrentUser"
+                       style="-fx-font-size:13px; -fx-font-weight:bold;
+                              -fx-text-fill:#374151; -fx-font-family:'Segoe UI',Arial;"/>
+            </HBox>
+        </HBox>
+    </top>
+
+    <center>
+        <StackPane>
+
+            <!-- FEED VIEW -->
+            <ScrollPane fx:id="mainScrollPane"
+                        fitToWidth="true"
+                        hbarPolicy="NEVER"
+                        vbarPolicy="AS_NEEDED"
+                        style="-fx-background:transparent;
+                               -fx-background-color:transparent;
+                               -fx-border-color:transparent;">
+                <content>
+                    <VBox alignment="TOP_CENTER"
+                          style="-fx-background-color:#F0F2F5;">
+                        <padding>
+                            <Insets top="28" bottom="48" left="20" right="20"/>
+                        </padding>
+
+                        <VBox fx:id="feedColumn"
+                              maxWidth="700" minWidth="340" spacing="0"
+                              style="-fx-alignment:TOP_CENTER;">
+
+                            <!-- CREATE POST CARD -->
+                            <VBox style="-fx-background-color:#FFFFFF;
+                                         -fx-background-radius:14;
+                                         -fx-effect:dropshadow(gaussian,rgba(0,0,0,0.06),16,0,0,2);
+                                         -fx-padding:20 22 20 22;
+                                         -fx-spacing:14;">
+                                <VBox.margin>
+                                    <Insets bottom="20"/>
+                                </VBox.margin>
+
+                                <HBox spacing="12" style="-fx-alignment:CENTER_LEFT;">
+                                    <Label text="✎"
+                                           style="-fx-background-color:linear-gradient(135deg,#4F46E5,#7C3AED);
+                                                  -fx-background-radius:22;
+                                                  -fx-min-width:42; -fx-min-height:42;
+                                                  -fx-max-width:42; -fx-max-height:42;
+                                                  -fx-alignment:CENTER;
+                                                  -fx-text-fill:white; -fx-font-size:17px;"/>
+                                    <VBox spacing="1">
+                                        <Label text="Create a new post"
+                                               style="-fx-font-size:14px; -fx-font-weight:bold;
+                                                      -fx-text-fill:#111827; -fx-font-family:'Segoe UI',Arial;"/>
+                                        <Label text="Share your thoughts with the community"
+                                               style="-fx-font-size:11px; -fx-text-fill:#9CA3AF;
+                                                      -fx-font-family:'Segoe UI',Arial;"/>
+                                    </VBox>
+                                </HBox>
+
+                                <TextArea fx:id="newPostContent"
+                                          promptText="What's on your mind?"
+                                          wrapText="true"
+                                          prefRowCount="4"
+                                          style="-fx-font-size:13px;
+                                                 -fx-font-family:'Segoe UI',Arial;
+                                                 -fx-text-fill:#374151;
+                                                 -fx-background-color:#F9FAFB;
+                                                 -fx-background-radius:10;
+                                                 -fx-border-color:#E5E7EB;
+                                                 -fx-border-radius:10;
+                                                 -fx-border-width:1.5;
+                                                 -fx-padding:11;"/>
+
+                                <Label fx:id="postErrorLabel"
+                                       visible="false" managed="false"
+                                       style="-fx-text-fill:#EF4444; -fx-font-size:11px;
+                                              -fx-font-family:'Segoe UI',Arial;"/>
+
+                                <HBox spacing="8" style="-fx-alignment:CENTER_LEFT;">
+                                    <TextField fx:id="newPostMediaPath"
+                                               promptText="Photo or video path (optional)"
+                                               HBox.hgrow="ALWAYS"
+                                               style="-fx-font-size:12px;
+                                                      -fx-font-family:'Segoe UI',Arial;
+                                                      -fx-background-color:#F9FAFB;
+                                                      -fx-background-radius:8;
+                                                      -fx-border-color:#E5E7EB;
+                                                      -fx-border-radius:8;
+                                                      -fx-border-width:1.5;
+                                                      -fx-padding:8 12 8 12;"/>
+                                    <Button text="📎"
+                                            onAction="#handleBrowseMedia"
+                                            style="-fx-background-color:#F3F4F8;
+                                                   -fx-background-radius:8;
+                                                   -fx-text-fill:#6B7280;
+                                                   -fx-font-size:14px;
+                                                   -fx-min-width:36; -fx-min-height:36;
+                                                   -fx-cursor:HAND;
+                                                   -fx-border-color:#E5E7EB;
+                                                   -fx-border-radius:8;"/>
+                                </HBox>
+
+                                <HBox spacing="10" style="-fx-alignment:CENTER_LEFT;">
+                                    <Label text="Visibility:"
+                                           style="-fx-font-size:12px; -fx-text-fill:#6B7280;
+                                                  -fx-font-family:'Segoe UI',Arial;"/>
+                                    <ComboBox fx:id="visibilityCombo"
+                                              style="-fx-font-size:12px;
+                                                     -fx-background-color:#F3F4F8;
+                                                     -fx-background-radius:8;
+                                                     -fx-border-color:#E5E7EB;
+                                                     -fx-border-radius:8;"/>
+                                    <Region HBox.hgrow="ALWAYS"/>
+                                    <Button text="Clear"
+                                            onAction="#handleClearPost"
+                                            style="-fx-background-color:transparent;
+                                                   -fx-text-fill:#9CA3AF;
+                                                   -fx-font-size:12px;
+                                                   -fx-padding:8 14 8 14;
+                                                   -fx-cursor:HAND;"/>
+                                    <Button fx:id="publishBtn"
+                                            text="Publish"
+                                            onAction="#handlePublishPost"
+                                            style="-fx-background-color:#4F46E5;
+                                                   -fx-background-radius:9;
+                                                   -fx-text-fill:white;
+                                                   -fx-font-size:12px;
+                                                   -fx-font-weight:bold;
+                                                   -fx-padding:8 20 8 20;
+                                                   -fx-cursor:HAND;"/>
+                                </HBox>
+                            </VBox>
+
+                            <!-- FEED HEADER -->
+                            <HBox spacing="8"
+                                  style="-fx-alignment:CENTER_LEFT; -fx-padding:0 0 10 2;">
+                                <Label text="Feed"
+                                       style="-fx-font-size:15px; -fx-font-weight:bold;
+                                              -fx-text-fill:#374151; -fx-font-family:'Segoe UI',Arial;"/>
+                                <Label fx:id="postCountLabel"
+                                       text="· 0 posts"
+                                       style="-fx-font-size:13px; -fx-text-fill:#9CA3AF;
+                                              -fx-font-family:'Segoe UI',Arial;"/>
+                                <Region HBox.hgrow="ALWAYS"/>
+                                <Button text="↻"
+                                        onAction="#handleRefresh"
+                                        style="-fx-background-color:transparent;
+                                               -fx-text-fill:#4F46E5; -fx-font-size:16px;
+                                               -fx-cursor:HAND; -fx-border-color:transparent;"/>
+                            </HBox>
+
+                            <!-- POSTS FEED -->
+                            <VBox fx:id="postsFeedContainer" spacing="14"/>
+
+                            <!-- EMPTY STATE -->
+                            <VBox fx:id="emptyStateBox"
+                                  alignment="CENTER" spacing="10"
+                                  visible="false" managed="false"
+                                  style="-fx-padding:60 0 60 0;">
+                                <Label text="✦"
+                                       style="-fx-font-size:44px; -fx-text-fill:#E5E7EB;"/>
+                                <Label text="No posts yet"
+                                       style="-fx-font-size:17px; -fx-font-weight:bold;
+                                              -fx-text-fill:#9CA3AF; -fx-font-family:'Segoe UI',Arial;"/>
+                                <Label text="Be the first to share something!"
+                                       style="-fx-font-size:12px; -fx-text-fill:#D1D5DB;
+                                              -fx-font-family:'Segoe UI',Arial;"/>
+                            </VBox>
+
+                        </VBox>
+                    </VBox>
+                </content>
+            </ScrollPane>
+
+            <!-- ARCHIVE VIEW -->
+            <VBox fx:id="archiveView"
+                  visible="false" managed="false"
+                  style="-fx-background-color:#F0F2F5;">
+
+                <HBox style="-fx-background-color:#FFFFFF;
+                             -fx-padding:14 28 14 28;
+                             -fx-alignment:CENTER_LEFT;
+                             -fx-spacing:14;
+                             -fx-effect:dropshadow(gaussian,rgba(0,0,0,0.05),8,0,0,2);">
+                    <Button text="← Back to Feed"
+                            onAction="#handleShowFeed"
+                            style="-fx-background-color:transparent;
+                                   -fx-text-fill:#4F46E5;
+                                   -fx-font-size:13px;
+                                   -fx-cursor:HAND;
+                                   -fx-border-color:transparent;"/>
+                    <Label text="Saved Posts"
+                           style="-fx-font-size:16px; -fx-font-weight:bold;
+                                  -fx-text-fill:#111827; -fx-font-family:'Segoe UI',Arial;"/>
+                    <Label fx:id="archiveCountLabel"
+                           text="· 0 saved"
+                           style="-fx-font-size:13px; -fx-text-fill:#9CA3AF;
+                                  -fx-font-family:'Segoe UI',Arial;"/>
+                </HBox>
+
+                <ScrollPane fitToWidth="true"
+                            hbarPolicy="NEVER"
+                            VBox.vgrow="ALWAYS"
+                            style="-fx-background:transparent;
+                                   -fx-background-color:transparent;
+                                   -fx-border-color:transparent;">
+                    <content>
+                        <VBox alignment="TOP_CENTER"
+                              style="-fx-background-color:#F0F2F5;">
+                            <padding>
+                                <Insets top="24" bottom="48" left="20" right="20"/>
+                            </padding>
+                            <VBox fx:id="archiveFeedContainer"
+                                  maxWidth="700" minWidth="340" spacing="14"
+                                  style="-fx-alignment:TOP_CENTER;"/>
+                            <VBox fx:id="archiveEmptyBox"
+                                  alignment="CENTER" spacing="10"
+                                  visible="false" managed="false"
+                                  style="-fx-padding:60 0 0 0;">
+                                <Label text="🗂"
+                                       style="-fx-font-size:44px;"/>
+                                <Label text="No saved posts yet"
+                                       style="-fx-font-size:17px; -fx-font-weight:bold;
+                                              -fx-text-fill:#9CA3AF;"/>
+                                <Label text="Save posts from the feed to see them here."
+                                       style="-fx-font-size:12px; -fx-text-fill:#D1D5DB;"/>
+                            </VBox>
+                        </VBox>
+                    </content>
+                </ScrollPane>
+            </VBox>
+
+        </StackPane>
+    </center>
+
+</BorderPane>

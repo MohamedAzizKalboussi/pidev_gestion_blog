@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="Controllers.catalogueController"
+            style="-fx-background-color: #f0f4f0;">
+
+    <top>
+        <HBox style="-fx-background-color: #1a1d27; -fx-padding: 14 28;
+                     -fx-border-color: #2d5a2d; -fx-border-width: 0 0 2 0;"
+              alignment="CENTER_LEFT" spacing="16">
+            <Label text="✈ Wanderlust"
+                   style="-fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #4caf50;"/>
+            <Label text="Catalogue" style="-fx-font-size: 14px; -fx-text-fill: #555;"/>
+            <HBox HBox.hgrow="ALWAYS"/>
+            <TextField fx:id="txtRecherche" promptText="🔍  Rechercher..."
+                       style="-fx-background-color: #f8f9fa; -fx-text-fill: #111;
+                              -fx-prompt-text-fill: #999; -fx-border-color: #555;
+                              -fx-border-width: 1; -fx-border-radius: 20; -fx-background-radius: 20;
+                              -fx-padding: 9 18; -fx-pref-width: 260; -fx-font-size: 13px;"/>
+            <Button fx:id="recherche" text="Rechercher" onAction="#handleRecherche"
+                    style="-fx-background-color: #4caf50; -fx-text-fill: white; -fx-cursor: hand;
+                           -fx-background-radius: 20; -fx-padding: 9 20;
+                           -fx-font-size: 13px; -fx-font-weight: bold;"/>
+            <Separator orientation="VERTICAL" style="-fx-padding: 0 4;"/>
+            <MenuButton fx:id="btnGestionBlog" text="📝  Blog"
+                        style="-fx-background-color: #FFFFFF; -fx-text-fill: #ccc; -fx-cursor: hand;
+                               -fx-background-radius: 6; -fx-padding: 8 16; -fx-font-size: 13px;">
+                <items>
+                    <MenuItem text="📋  Gérer les Posts"         onAction="#ouvrirGestionPosts"/>
+                    <MenuItem text="💬  Gérer les Commentaires"   onAction="#ouvrirGestionCommentaires"/>
+                    <MenuItem text="❤  Gérer les Réactions"      onAction="#ouvrirGestionReactions"/>
+                </items>
+            </MenuButton>
+        </HBox>
+    </top>
+
+    <center>
+        <VBox spacing="0">
+
+            <!-- HERO -->
+            <VBox style="-fx-background-color: white; -fx-padding: 44 60;
+                         -fx-border-color: #e0e0e0; -fx-border-width: 0 0 1 0;
+                         -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 8, 0, 0, 2);"
+                  spacing="10">
+                <HBox alignment="CENTER_LEFT" spacing="32">
+                    <VBox spacing="12" HBox.hgrow="ALWAYS">
+                        <Label text="Explorez le Monde 🌍"
+                               style="-fx-font-size: 34px; -fx-font-weight: bold; -fx-text-fill: #1a1d27;"/>
+                        <Label text="Découvrez nos activités et événements pour votre prochaine aventure"
+                               style="-fx-font-size: 14px; -fx-text-fill: #777;"/>
+                        <HBox spacing="12" style="-fx-padding: 10 0 0 0;">
+                            <Button fx:id="orgactivite" text="🏃  Gérer les Activités"
+                                    onAction="#ouvrirGestionActivites"
+                                    style="-fx-background-color: #4caf50; -fx-text-fill: white;
+                                           -fx-cursor: hand; -fx-background-radius: 8;
+                                           -fx-padding: 11 22; -fx-font-size: 13px; -fx-font-weight: bold;"/>
+                            <Button fx:id="orgevent" text="📅  Organiser un Événement"
+                                    onAction="#ouvrirOrganisation"
+                                    style="-fx-background-color: transparent; -fx-text-fill: #4caf50;
+                                           -fx-cursor: hand; -fx-border-color: #4caf50; -fx-border-width: 1;
+                                           -fx-border-radius: 8; -fx-background-radius: 8;
+                                           -fx-padding: 11 22; -fx-font-size: 13px;"/>
+                        </HBox>
+                    </VBox>
+                    <HBox spacing="14">
+                        <VBox style="-fx-background-color: #f0f4f0; -fx-background-radius: 14; -fx-padding: 22 28;" spacing="6" alignment="CENTER">
+                            <Label text="🌍" style="-fx-font-size: 30px;"/>
+                            <Label text="Activités"  style="-fx-text-fill: #777; -fx-font-size: 12px;"/>
+                            <Label text="Explorer"   style="-fx-text-fill: #4caf50; -fx-font-size: 13px; -fx-font-weight: bold;"/>
+                        </VBox>
+                        <VBox style="-fx-background-color: #f0f4f0; -fx-background-radius: 14; -fx-padding: 22 28;" spacing="6" alignment="CENTER">
+                            <Label text="🎉" style="-fx-font-size: 30px;"/>
+                            <Label text="Événements" style="-fx-text-fill: #777; -fx-font-size: 12px;"/>
+                            <Label text="Rejoindre"  style="-fx-text-fill: #4caf50; -fx-font-size: 13px; -fx-font-weight: bold;"/>
+                        </VBox>
+                        <VBox style="-fx-background-color: #f0f4f0; -fx-background-radius: 14; -fx-padding: 22 28;" spacing="6" alignment="CENTER">
+                            <Label text="📝" style="-fx-font-size: 30px;"/>
+                            <Label text="Blog"       style="-fx-text-fill: #777; -fx-font-size: 12px;"/>
+                            <Label text="Lire"       style="-fx-text-fill: #4caf50; -fx-font-size: 13px; -fx-font-weight: bold;"/>
+                        </VBox>
+                    </HBox>
+                </HBox>
+            </VBox>
+
+            <!-- TABS -->
+            <TabPane fx:id="tabPane" tabClosingPolicy="UNAVAILABLE" VBox.vgrow="ALWAYS">
+                <Tab fx:id="tabActivites" text="🏃  Activités">
+                    <ScrollPane fx:id="scrollPaneActivites" fitToWidth="true"
+                                style="-fx-background-color: #f0f4f0; -fx-background: #f0f4f0;">
+                        <FlowPane fx:id="flowActivites" hgap="20" vgap="20"
+                                  style="-fx-background-color: #f0f4f0; -fx-padding: 28;" alignment="TOP_LEFT">
+                            <Label text="Aucune activité disponible."
+                                   style="-fx-text-fill: #bbb; -fx-font-size: 15px; -fx-padding: 40;"/>
+                        </FlowPane>
+                    </ScrollPane>
+                </Tab>
+                <Tab fx:id="tabEvents" text="📅  Événements">
+                    <ScrollPane fx:id="scrollPaneEvents" fitToWidth="true"
+                                style="-fx-background-color: #f0f4f0; -fx-background: #f0f4f0;">
+                        <FlowPane fx:id="flowEvents" hgap="20" vgap="20"
+                                  style="-fx-background-color: #f0f4f0; -fx-padding: 28;" alignment="TOP_LEFT">
+                            <Label text="Aucun événement disponible."
+                                   style="-fx-text-fill: #bbb; -fx-font-size: 15px; -fx-padding: 40;"/>
+                        </FlowPane>
+                    </ScrollPane>
+                </Tab>
+            </TabPane>
+        </VBox>
+    </center>
+</BorderPane>

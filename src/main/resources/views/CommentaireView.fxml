@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="Controllers.CommentaireController"
+            style="-fx-background-color: #f0f4f0;">
+
+    <top>
+        <HBox style="-fx-background-color: #1a1d27; -fx-padding: 12 24;
+                     -fx-border-color: #2d5a2d; -fx-border-width: 0 0 2 0;"
+              alignment="CENTER_LEFT" spacing="16">
+            <Label text="✈ Wanderlust"
+                   style="-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #4caf50;"/>
+            <Label text="/" style="-fx-text-fill: #555;"/>
+            <Label text="Commentaires" style="-fx-font-size: 16px; -fx-text-fill: #aaa;"/>
+            <HBox HBox.hgrow="ALWAYS"/>
+            <Button text="⬅  Catalogue" onAction="#retourCatalogue"
+                    style="-fx-background-color: transparent; -fx-text-fill: #aaa; -fx-cursor: hand;
+                           -fx-border-color: #444; -fx-border-radius: 6; -fx-background-radius: 6;
+                           -fx-padding: 7 14; -fx-font-size: 13px;"/>
+            <Button text="📋  Posts" onAction="#goToPosts"
+                    style="-fx-background-color: transparent; -fx-text-fill: #aaa; -fx-cursor: hand;
+                           -fx-border-color: #444; -fx-border-radius: 6; -fx-background-radius: 6;
+                           -fx-padding: 7 14; -fx-font-size: 13px;"/>
+            <Button text="❤  Réactions" onAction="#goToReactions"
+                    style="-fx-background-color: transparent; -fx-text-fill: #aaa; -fx-cursor: hand;
+                           -fx-border-color: #444; -fx-border-radius: 6; -fx-background-radius: 6;
+                           -fx-padding: 7 14; -fx-font-size: 13px;"/>
+        </HBox>
+    </top>
+
+    <center>
+        <HBox spacing="0">
+
+            <!-- STATS SIDEBAR -->
+            <VBox style="-fx-background-color: #1a1d27; -fx-pref-width: 210; -fx-padding: 24 16;
+                         -fx-border-color: #2d5a2d; -fx-border-width: 0 2 0 0;" spacing="12">
+                <Label text="STATISTIQUES"
+                       style="-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #4caf50;"/>
+                <VBox style="-fx-background-color: #0f1117; -fx-background-radius: 10; -fx-padding: 16;" spacing="4">
+                    <Label text="Total Commentaires" style="-fx-text-fill: #aaa; -fx-font-size: 11px;"/>
+                    <Label fx:id="lblTotalCommentaires" text="0"
+                           style="-fx-text-fill: white; -fx-font-size: 28px; -fx-font-weight: bold;"/>
+                </VBox>
+                <VBox style="-fx-background-color: #0f1117; -fx-background-radius: 10; -fx-padding: 16;" spacing="6">
+                    <Label text="💬" style="-fx-font-size: 28px;"/>
+                    <Label text="Discussions actives" style="-fx-text-fill: #555; -fx-font-size: 11px;"/>
+                </VBox>
+                <VBox style="-fx-background-color: #0f1117; -fx-background-radius: 10; -fx-padding: 16;" spacing="6">
+                    <Label text="📝" style="-fx-font-size: 28px;"/>
+                    <Label text="Commentez les posts" style="-fx-text-fill: #555; -fx-font-size: 11px;"/>
+                </VBox>
+            </VBox>
+
+            <!-- MAIN -->
+            <VBox HBox.hgrow="ALWAYS">
+
+                <!-- FORM -->
+                <VBox style="-fx-background-color: white; -fx-padding: 24 28;
+                             -fx-border-color: #e0e0e0; -fx-border-width: 0 0 1 0;
+                             -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.08), 8, 0, 0, 2);"
+                      spacing="14">
+                    <Label text="✚  Nouveau Commentaire"
+                           style="-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #1a1d27;"/>
+                    <Label fx:id="lblValidation" text=""
+                           style="-fx-font-size: 13px; -fx-font-weight: bold;"/>
+
+                    <HBox spacing="20">
+                        <VBox HBox.hgrow="ALWAYS" spacing="6">
+                            <HBox alignment="CENTER_LEFT">
+                                <Label text="Contenu du commentaire"
+                                       style="-fx-text-fill: #333; -fx-font-size: 13px; -fx-font-weight: bold;"/>
+                                <HBox HBox.hgrow="ALWAYS"/>
+                                <Label fx:id="lblCharCount" text="0/300"
+                                       style="-fx-text-fill: #999; -fx-font-size: 12px;"/>
+                            </HBox>
+                            <TextArea fx:id="txtContenu"
+                                      promptText="Écrivez votre commentaire..."
+                                      prefHeight="110"
+                                      style="-fx-background-color: #f8f9fa;
+                                             -fx-text-fill: #111111;
+                                             -fx-prompt-text-fill: #aaa;
+                                             -fx-border-color: #d0d0d0;
+                                             -fx-border-width: 1;
+                                             -fx-border-radius: 8;
+                                             -fx-background-radius: 8;
+                                             -fx-padding: 12;
+                                             -fx-font-size: 14px;"/>
+                        </VBox>
+                        <VBox spacing="10" minWidth="300">
+                            <Label text="Post associé"
+                                   style="-fx-text-fill: #333; -fx-font-size: 13px; -fx-font-weight: bold;"/>
+                            <ComboBox fx:id="cbPost" maxWidth="Infinity"
+                                      style="-fx-background-color: #f8f9fa;
+                                             -fx-border-color: #d0d0d0;
+                                             -fx-border-width: 1;
+                                             -fx-border-radius: 6;
+                                             -fx-background-radius: 6;"/>
+                            <Region VBox.vgrow="ALWAYS"/>
+                            <HBox spacing="10" alignment="CENTER_RIGHT">
+                                <Button fx:id="btnAnnuler" text="Annuler" onAction="#annuler"
+                                        style="-fx-background-color: #f0f0f0; -fx-text-fill: #555;
+                                               -fx-cursor: hand; -fx-background-radius: 6;
+                                               -fx-border-color: #ccc; -fx-border-width: 1;
+                                               -fx-border-radius: 6; -fx-padding: 9 20; -fx-font-size: 13px;"/>
+                                <Button fx:id="btnModifier" text="✏  Modifier" onAction="#modifierCommentaire"
+                                        style="-fx-background-color: #1565c0; -fx-text-fill: white;
+                                               -fx-cursor: hand; -fx-background-radius: 6;
+                                               -fx-padding: 9 20; -fx-font-size: 13px; -fx-font-weight: bold;"/>
+                                <Button fx:id="btnAjouter" text="✚  Ajouter" onAction="#ajouterCommentaire"
+                                        style="-fx-background-color: #4caf50; -fx-text-fill: white;
+                                               -fx-cursor: hand; -fx-background-radius: 6;
+                                               -fx-padding: 9 20; -fx-font-size: 13px; -fx-font-weight: bold;"/>
+                            </HBox>
+                        </VBox>
+                    </HBox>
+                </VBox>
+
+                <!-- TABLE -->
+                <VBox VBox.vgrow="ALWAYS" style="-fx-background-color: #f0f4f0;">
+                    <HBox style="-fx-padding: 14 28; -fx-background-color: white;
+                                 -fx-border-color: #e0e0e0; -fx-border-width: 0 0 1 0;"
+                          alignment="CENTER_LEFT">
+                        <Label text="Tous les Commentaires"
+                               style="-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #1a1d27;"/>
+                    </HBox>
+                    <TableView fx:id="tableView" VBox.vgrow="ALWAYS"
+                               style="-fx-background-color: white;
+                                      -fx-table-cell-border-color: #f0f0f0;
+                                      -fx-control-inner-background: white;">
+                        <columns>
+                            <TableColumn fx:id="colId"      text="ID"      prefWidth="60"/>
+                            <TableColumn fx:id="colContenu" text="Contenu"  prefWidth="420"/>
+                            <TableColumn fx:id="colIdPost"  text="Post ID"  prefWidth="80"/>
+                            <TableColumn fx:id="colDate"    text="Date"     prefWidth="180"/>
+                            <TableColumn fx:id="colActions" text="Actions"  prefWidth="220"/>
+                        </columns>
+                        <placeholder>
+                            <Label text="Aucun commentaire disponible"
+                                   style="-fx-text-fill: #bbb; -fx-font-size: 16px;"/>
+                        </placeholder>
+                    </TableView>
+                </VBox>
+            </VBox>
+        </HBox>
+    </center>
+</BorderPane>
